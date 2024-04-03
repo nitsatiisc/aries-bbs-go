@@ -9,7 +9,7 @@ checks: check-deps
 
 .PHONY: unit-tests
 unit-tests:
-	@go test -timeout 480s -cover $(shell go list ./...)
+	@go test -timeout 480s -cover $(shell go list ./... | grep -v integration)
 
 .PHONY: check-deps
 check-deps:

@@ -24,3 +24,16 @@ jobs:
 
     - name: Unit Tests
       run: make unit-tests
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.65.0
+        components: clippy, rustfmt
+
+    - name: Debug build
+      working-directory: ./integration/rust_signer/
+      run: cargo build --all-targets
+
+    - name: Integration Tests
+      run: go test github.com/hyperledger/aries-bbs-go/integration
