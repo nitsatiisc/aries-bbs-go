@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"testing"
 
+	ml "github.com/IBM/mathlib"
 	"github.com/hyperledger/aries-bbs-go/bbs"
 	"github.com/stretchr/testify/require"
 )
@@ -261,4 +262,85 @@ func TestBBSG2Pub_DeriveProof(t *testing.T) {
 		require.EqualError(t, err, "init proof of knowledge signature: invalid size: 6 revealed indexes is "+
 			"larger than 4 messages")
 	})
+}
+
+// TestBlindSign uses `SignWithKeyB` to show how blind signing could be implemented
+// using this new primitive. Note that this implementation isn't secure since the
+// signer doesn't check the well-formedness of the term received from the requester
+func TestBlindSign(t *testing.T) {
+	curve := ml.Curves[ml.BLS12_381_BBS]
+
+	pubKey, privKey, err := generateKeyPairRandom()
+	require.NoError(t, err)
+
+	pubKeyBytes, err := pubKey.Marshal()
+	require.NoError(t, err)
+
+	blindMsgCount := 2
+
+	messagesBytes := [][]byte{
+		[]byte("message1"),
+		[]byte("message2"),
+		[]byte("message3"),
+		[]byte("message4"),
+	}
+
+	pubKeyWithGenerators, err := pubKey.ToPublicKeyWithGenerators(len(messagesBytes))
+	require.NoError(t, err)
+
+	blindedMessagesBytes := [][]byte{
+		[]byte("message1"),
+		nil,
+		nil,
+		[]byte("message4"),
+	}
+
+	clearMessagesBytes := [][]byte{
+		nil,
+		[]byte("message2"),
+		[]byte("message3"),
+		nil,
+	}
+
+	// requester generates commitment to blind messages
+	cb := bbs.NewCommitmentBuilder(blindMsgCount + 1)
+	for i, msg := range blindedMessagesBytes {
+		if msg == nil {
+			continue
+		}
+
+		cb.Add(pubKeyWithGenerators.H[i], bbs.FrFromOKM(msg))
+	}
+	blinding := curve.NewRandomZr(rand.Reader)
+	cb.Add(pubKeyWithGenerators.H0, blinding)
+	b_req := cb.Build()
+
+	// signer adds its component
+	cb = bbs.NewCommitmentBuilder(len(messagesBytes) - blindMsgCount + 2)
+	for i, msg := range clearMessagesBytes {
+		if msg == nil {
+			continue
+		}
+
+		cb.Add(pubKeyWithGenerators.H[i], bbs.FrFromOKM(msg))
+	}
+	cb.Add(b_req, curve.NewZrFromInt(1))
+	cb.Add(curve.GenG1, curve.NewZrFromInt(1))
+	comm := cb.Build()
+
+	// signer signs
+	scheme := bbs.New()
+	sig, err := scheme.SignWithKeyB(comm, len(messagesBytes), privKey)
+	require.NoError(t, err)
+
+	// requester unblinds
+	signature, err := bbs.ParseSignature(sig)
+	require.NoError(t, err)
+	signature.S = curve.ModAdd(signature.S, blinding, curve.GroupOrder)
+	sig, err = signature.ToBytes()
+	require.NoError(t, err)
+
+	// requester verifies
+	err = scheme.Verify(messagesBytes, sig, pubKeyBytes)
+	require.NoError(t, err)
 }

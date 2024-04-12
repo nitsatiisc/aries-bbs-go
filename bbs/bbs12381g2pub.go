@@ -227,12 +227,41 @@ func (bbs *BBSG2Pub) SignWithKeyFr(messagesFr []*SignatureMessage, messagesCount
 		return nil, fmt.Errorf("build generators from public key: %w", err)
 	}
 
+	const basesOffset = 1
+
+	cb := NewCommitmentBuilder(len(messagesFr) + basesOffset)
+
+	cb.Add(curve.GenG1, curve.NewZrFromInt(1))
+
+	for i := 0; i < len(messagesFr); i++ {
+		cb.Add(pubKeyWithGenerators.H[messagesFr[i].Idx], messagesFr[i].FR)
+	}
+
+	return bbs.SignWithKeyB(cb.Build(), len(messagesFr), privKey)
+}
+
+// SignWithKeyB signs the one or more messages using BBS+ key pair.
+// Messages are already committed in the element `b`, which the caller
+// is supposed to have constructed properly. This call enables a clean
+// construction of blind signing protocols, where `b` is constructed
+// jointly by requester and signer.
+func (bbs *BBSG2Pub) SignWithKeyB(b *ml.G1, messagesCount int, privKey *PrivateKey) ([]byte, error) {
+	var err error
+
+	pubKey := privKey.PublicKey()
+
+	pubKeyWithGenerators, err := pubKey.ToPublicKeyWithGenerators(messagesCount)
+	if err != nil {
+		return nil, fmt.Errorf("build generators from public key: %w", err)
+	}
+
 	e, s := createRandSignatureFr(), createRandSignatureFr()
 	exp := privKey.FR.Copy()
 	exp = exp.Plus(e)
 	exp.InvModP(curve.GroupOrder)
 
-	b := computeB(s, messagesFr, pubKeyWithGenerators)
+	b = b.Copy()
+	b.Add(pubKeyWithGenerators.H0.Mul(s))
 
 	sig := b.Mul(frToRepr(exp))
 
