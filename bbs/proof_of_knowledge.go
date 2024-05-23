@@ -70,7 +70,7 @@ func NewPoKOfSignature(signature *Signature, messages []*SignatureMessage, revea
 	}
 
 	for _, ind := range revealedIndexes {
-		revealedMessages[ind] = messages[ind]
+		revealedMessages[messages[ind].Idx] = messages[ind]
 	}
 
 	pokVC2, secrets2 := newVC2Signature(d, r3, pubKey, sPrime, messages, revealedMessages)
@@ -124,14 +124,14 @@ func newVC2Signature(d *ml.G1, r3 *ml.Zr, pubKey *PublicKeyWithGenerators, sPrim
 
 	secrets2 = append(secrets2, sPrime)
 
-	for i := 0; i < messagesCount; i++ {
-		if _, ok := revealedMessages[i]; ok {
+	for _, msg := range messages {
+		if _, ok := revealedMessages[msg.Idx]; ok {
 			continue
 		}
 
-		committing2.Commit(pubKey.H[i])
+		committing2.Commit(pubKey.H[msg.Idx])
 
-		sourceFR := messages[i].FR
+		sourceFR := msg.FR
 		hiddenFRCopy := sourceFR.Copy()
 
 		secrets2 = append(secrets2, hiddenFRCopy)
