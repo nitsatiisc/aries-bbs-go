@@ -52,11 +52,11 @@ func FrFromOKM(message []byte) *ml.Zr {
 	return elm
 }
 
-func frToRepr(fr *ml.Zr) *ml.Zr {
+func FrToRepr(fr *ml.Zr) *ml.Zr {
 	return fr.Copy()
 }
 
-func messagesToFr(messages [][]byte) []*SignatureMessage {
+func MessagesToFr(messages [][]byte) []*SignatureMessage {
 	messagesFr := make([]*SignatureMessage, len(messages))
 
 	for i := range messages {

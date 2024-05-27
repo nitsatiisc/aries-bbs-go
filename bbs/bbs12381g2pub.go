@@ -75,7 +75,7 @@ func (bbs *BBSG2Pub) Verify(messages [][]byte, sigBytes, pubKeyBytes []byte) err
 		return fmt.Errorf("build generators from public key: %w", err)
 	}
 
-	messagesFr := messagesToFr(messages)
+	messagesFr := MessagesToFr(messages)
 
 	return signature.Verify(messagesFr, publicKeyWithGenerators)
 }
@@ -97,7 +97,7 @@ func (bbs *BBSG2Pub) Sign(messages [][]byte, privKeyBytes []byte) ([]byte, error
 // VerifyProof verifies BBS+ signature proof for one ore more revealed messages.
 func (bbs *BBSG2Pub) VerifyProof(messagesBytes [][]byte, proof, nonce, pubKeyBytes []byte) error {
 
-	messages := messagesToFr(messagesBytes)
+	messages := MessagesToFr(messagesBytes)
 
 	return bbs.VerifyProofFr(messages, proof, nonce, pubKeyBytes)
 }
@@ -120,7 +120,7 @@ func (bbs *BBSG2Pub) VerifyProofFr(messages []*SignatureMessage, proof, nonce, p
 		return fmt.Errorf("parse public key: %w", err)
 	}
 
-	publicKeyWithGenerators, err := pubKey.ToPublicKeyWithGenerators(payload.messagesCount)
+	publicKeyWithGenerators, err := pubKey.ToPublicKeyWithGenerators(payload.MessagesCount)
 	if err != nil {
 		return fmt.Errorf("build generators from public key: %w", err)
 	}
@@ -147,7 +147,7 @@ func (bbs *BBSG2Pub) VerifyProofFr(messages []*SignatureMessage, proof, nonce, p
 func (bbs *BBSG2Pub) DeriveProof(messages [][]byte, sigBytes, nonce, pubKeyBytes []byte,
 	revealedIndexes []int) ([]byte, error) {
 
-	return bbs.DeriveProofZr(messagesToFr(messages), sigBytes, nonce, pubKeyBytes, revealedIndexes)
+	return bbs.DeriveProofZr(MessagesToFr(messages), sigBytes, nonce, pubKeyBytes, revealedIndexes)
 }
 
 // DeriveProofZr derives a proof of BBS+ signature with some messages disclosed.
@@ -263,7 +263,7 @@ func (bbs *BBSG2Pub) SignWithKeyB(b *ml.G1, messagesCount int, privKey *PrivateK
 	b = b.Copy()
 	b.Add(pubKeyWithGenerators.H0.Mul(s))
 
-	sig := b.Mul(frToRepr(exp))
+	sig := b.Mul(FrToRepr(exp))
 
 	signature := &Signature{
 		A: sig,
@@ -274,7 +274,7 @@ func (bbs *BBSG2Pub) SignWithKeyB(b *ml.G1, messagesCount int, privKey *PrivateK
 	return signature.ToBytes()
 }
 
-func computeB(s *ml.Zr, messages []*SignatureMessage, key *PublicKeyWithGenerators) *ml.G1 {
+func ComputeB(s *ml.Zr, messages []*SignatureMessage, key *PublicKeyWithGenerators) *ml.G1 {
 	const basesOffset = 2
 
 	cb := NewCommitmentBuilder(len(messages) + basesOffset)
@@ -317,7 +317,7 @@ func sumOfG1Products(bases []*ml.G1, scalars []*ml.Zr) *ml.G1 {
 		b := bases[i]
 		s := scalars[i]
 
-		g := b.Mul(frToRepr(s))
+		g := b.Mul(FrToRepr(s))
 		if res == nil {
 			res = g
 		} else {
@@ -350,5 +350,5 @@ func ParseProofNonce(proofNonceBytes []byte) *ProofNonce {
 
 // ToBytes converts ProofNonce into bytes.
 func (pn *ProofNonce) ToBytes() []byte {
-	return frToRepr(pn.fr).Bytes()
+	return FrToRepr(pn.fr).Bytes()
 }

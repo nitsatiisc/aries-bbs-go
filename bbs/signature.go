@@ -56,10 +56,10 @@ func (s *Signature) ToBytes() ([]byte, error) {
 func (s *Signature) Verify(messages []*SignatureMessage, pubKey *PublicKeyWithGenerators) error {
 	p1 := s.A
 
-	q1 := curve.GenG2.Mul(frToRepr(s.E))
+	q1 := curve.GenG2.Mul(FrToRepr(s.E))
 	q1.Add(pubKey.w)
 
-	p2 := computeB(s.S, messages, pubKey)
+	p2 := ComputeB(s.S, messages, pubKey)
 	p2.Neg()
 
 	if compareTwoPairings(p1, q1, p2, curve.GenG2) {

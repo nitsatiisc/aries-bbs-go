@@ -262,6 +262,12 @@ func TestBBSG2Pub_DeriveProof(t *testing.T) {
 		require.EqualError(t, err, "init proof of knowledge signature: invalid size: 6 revealed indexes is "+
 			"larger than 4 messages")
 	})
+
+	t.Run("DeriveProof with invalid signature", func(t *testing.T) {
+		signatureBytes[len(signatureBytes)-4]--
+		_, err = bls.DeriveProof(messagesBytes, signatureBytes, nonce, pubKeyBytes, revealedIndexes)
+		require.EqualError(t, err, "init proof of knowledge signature: verify input signature: invalid BLS12-381 signature")
+	})
 }
 
 // TestBlindSign uses `SignWithKeyB` to show how blind signing could be implemented

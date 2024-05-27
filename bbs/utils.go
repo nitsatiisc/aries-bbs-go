@@ -52,7 +52,7 @@ func bitvectorToIndexes(data []byte) []int {
 }
 
 type pokPayload struct {
-	messagesCount int
+	MessagesCount int
 	Revealed      []int
 }
 
@@ -72,7 +72,7 @@ func ParsePoKPayload(bytes []byte) (*pokPayload, error) {
 	revealed := bitvectorToIndexes(reverseBytes(bytes[2:offset]))
 
 	return &pokPayload{
-		messagesCount: messagesCount,
+		MessagesCount: messagesCount,
 		Revealed:      revealed,
 	}, nil
 }
@@ -81,7 +81,7 @@ func ParsePoKPayload(bytes []byte) (*pokPayload, error) {
 func (p *pokPayload) ToBytes() ([]byte, error) {
 	bytes := make([]byte, p.LenInBytes())
 
-	binary.BigEndian.PutUint16(bytes, uint16(p.messagesCount))
+	binary.BigEndian.PutUint16(bytes, uint16(p.MessagesCount))
 
 	bitvector := bytes[2:]
 
@@ -102,7 +102,7 @@ func (p *pokPayload) ToBytes() ([]byte, error) {
 }
 
 func (p *pokPayload) LenInBytes() int {
-	return lenInBytes(p.messagesCount)
+	return lenInBytes(p.MessagesCount)
 }
 
 func lenInBytes(messagesCount int) int {
@@ -111,7 +111,7 @@ func lenInBytes(messagesCount int) int {
 
 func NewPoKPayload(messagesCount int, revealed []int) *pokPayload {
 	return &pokPayload{
-		messagesCount: messagesCount,
+		MessagesCount: messagesCount,
 		Revealed:      revealed,
 	}
 }

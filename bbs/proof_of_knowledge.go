@@ -30,18 +30,48 @@ type PoKOfSignature struct {
 // NewPoKOfSignature creates a new PoKOfSignature.
 func NewPoKOfSignature(signature *Signature, messages []*SignatureMessage, revealedIndexes []int,
 	pubKey *PublicKeyWithGenerators) (*PoKOfSignature, error) {
-	err := signature.Verify(messages, pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("verify input signature: %w", err)
+
+	p := &PoKOfSignatureProvider{
+		VC2SignatureProvider: &defaultVC2SignatureProvider{},
+		VerifySig:            true,
+	}
+
+	return p.PoKOfSignature(signature, messages, revealedIndexes, pubKey)
+}
+
+type VC2SignatureProvider interface {
+	New(*ml.G1, *ml.Zr, *PublicKeyWithGenerators, *ml.Zr, []*SignatureMessage, map[int]*SignatureMessage) (*ProverCommittedG1, []*ml.Zr)
+}
+
+type PoKOfSignatureProvider struct {
+	VC2SignatureProvider
+
+	VerifySig bool
+}
+
+func (p *PoKOfSignatureProvider) PoKOfSignature(signature *Signature, messages []*SignatureMessage, revealedIndexes []int,
+	pubKey *PublicKeyWithGenerators) (*PoKOfSignature, error) {
+	b := ComputeB(signature.S, messages, pubKey)
+
+	return p.PoKOfSignatureB(signature, messages, revealedIndexes, pubKey, b)
+}
+
+func (p *PoKOfSignatureProvider) PoKOfSignatureB(signature *Signature, messages []*SignatureMessage, revealedIndexes []int,
+	pubKey *PublicKeyWithGenerators, b *ml.G1) (*PoKOfSignature, error) {
+
+	if p.VerifySig {
+		err := signature.Verify(messages, pubKey)
+		if err != nil {
+			return nil, fmt.Errorf("verify input signature: %w", err)
+		}
 	}
 
 	r1, r2 := createRandSignatureFr(), createRandSignatureFr()
-	b := computeB(signature.S, messages, pubKey)
-	aPrime := signature.A.Mul(frToRepr(r1))
+	aPrime := signature.A.Mul(FrToRepr(r1))
 
-	aBarDenom := aPrime.Mul(frToRepr(signature.E))
+	aBarDenom := aPrime.Mul(FrToRepr(signature.E))
 
-	aBar := b.Mul(frToRepr(r1))
+	aBar := b.Mul(FrToRepr(r1))
 	aBar.Sub(aBarDenom)
 
 	r2D := r2.Copy()
@@ -73,7 +103,7 @@ func NewPoKOfSignature(signature *Signature, messages []*SignatureMessage, revea
 		revealedMessages[messages[ind].Idx] = messages[ind]
 	}
 
-	pokVC2, secrets2 := newVC2Signature(d, r3, pubKey, sPrime, messages, revealedMessages)
+	pokVC2, secrets2 := p.VC2SignatureProvider.New(d, r3, pubKey, sPrime, messages, revealedMessages)
 
 	return &PoKOfSignature{
 		aPrime:           aPrime,
@@ -106,7 +136,10 @@ func newVC1Signature(aPrime *ml.G1, h0 *ml.G1,
 	return pokVC1, secrets1
 }
 
-func newVC2Signature(d *ml.G1, r3 *ml.Zr, pubKey *PublicKeyWithGenerators, sPrime *ml.Zr,
+type defaultVC2SignatureProvider struct {
+}
+
+func (*defaultVC2SignatureProvider) New(d *ml.G1, r3 *ml.Zr, pubKey *PublicKeyWithGenerators, sPrime *ml.Zr,
 	messages []*SignatureMessage, revealedMessages map[int]*SignatureMessage) (*ProverCommittedG1, []*ml.Zr) {
 	messagesCount := len(messages)
 	committing2 := NewProverCommittingG1()

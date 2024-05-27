@@ -14,6 +14,10 @@ import (
 	ml "github.com/IBM/mathlib"
 )
 
+type VC2ProofVerifier interface {
+	Verify(*ml.Zr, *PublicKeyWithGenerators, map[int]*SignatureMessage, []*SignatureMessage, *ProofG1, *ml.G1) error
+}
+
 // PoKOfSignatureProof defines BLS signature proof.
 // It is the actual proof that is sent from prover to verifier.
 type PoKOfSignatureProof struct {
@@ -23,12 +27,14 @@ type PoKOfSignatureProof struct {
 
 	proofVC1 *ProofG1
 	ProofVC2 *ProofG1
+
+	VC2ProofVerifier
 }
 
 // GetBytesForChallenge creates bytes for proof challenge.
 func (sp *PoKOfSignatureProof) GetBytesForChallenge(revealedMessages map[int]*SignatureMessage,
 	pubKey *PublicKeyWithGenerators) []byte {
-	hiddenCount := pubKey.messagesCount - len(revealedMessages)
+	hiddenCount := pubKey.MessagesCount - len(revealedMessages)
 
 	bytesLen := (7 + hiddenCount) * g1UncompressedSize //nolint:gomnd
 	bytes := make([]byte, 0, bytesLen)
@@ -67,7 +73,7 @@ func (sp *PoKOfSignatureProof) Verify(challenge *ml.Zr, pubKey *PublicKeyWithGen
 		return err
 	}
 
-	return sp.verifyVC2Proof(challenge, pubKey, revealedMessages, messages)
+	return sp.VC2ProofVerifier.Verify(challenge, pubKey, revealedMessages, messages, sp.ProofVC2, sp.d)
 }
 
 func (sp *PoKOfSignatureProof) verifyVC1Proof(challenge *ml.Zr, pubKey *PublicKeyWithGenerators) error {
@@ -83,12 +89,16 @@ func (sp *PoKOfSignatureProof) verifyVC1Proof(challenge *ml.Zr, pubKey *PublicKe
 	return nil
 }
 
-func (sp *PoKOfSignatureProof) verifyVC2Proof(challenge *ml.Zr, pubKey *PublicKeyWithGenerators,
-	revealedMessages map[int]*SignatureMessage, messages []*SignatureMessage) error {
+type defaultVC2ProofVerifier struct {
+}
+
+func (v *defaultVC2ProofVerifier) Verify(challenge *ml.Zr, pubKey *PublicKeyWithGenerators,
+	revealedMessages map[int]*SignatureMessage, messages []*SignatureMessage, ProofVC2 *ProofG1,
+	d *ml.G1) error {
 	revealedMessagesCount := len(revealedMessages)
 
-	basesVC2 := make([]*ml.G1, 0, 2+pubKey.messagesCount-revealedMessagesCount)
-	basesVC2 = append(basesVC2, sp.d, pubKey.H0)
+	basesVC2 := make([]*ml.G1, 0, 2+pubKey.MessagesCount-revealedMessagesCount)
+	basesVC2 = append(basesVC2, d, pubKey.H0)
 
 	basesDisclosed := make([]*ml.G1, 0, 1+revealedMessagesCount)
 	exponents := make([]*ml.Zr, 0, 1+revealedMessagesCount)
@@ -116,13 +126,13 @@ func (sp *PoKOfSignatureProof) verifyVC2Proof(challenge *ml.Zr, pubKey *PublicKe
 		b := basesDisclosed[i]
 		s := exponents[i]
 
-		g := b.Mul(frToRepr(s))
+		g := b.Mul(FrToRepr(s))
 		pr.Add(g)
 	}
 
 	pr.Neg()
 
-	err := sp.ProofVC2.Verify(basesVC2, pr, challenge)
+	err := ProofVC2.Verify(basesVC2, pr, challenge)
 	if err != nil {
 		return errors.New("bad signature")
 	}
@@ -195,7 +205,7 @@ func (pg1 *ProofG1) ToBytes() []byte {
 	bytes = append(bytes, lenBytes...)
 
 	for i := range pg1.Responses {
-		responseBytes := frToRepr(pg1.Responses[i]).Bytes()
+		responseBytes := FrToRepr(pg1.Responses[i]).Bytes()
 		bytes = append(bytes, responseBytes...)
 	}
 
@@ -237,11 +247,12 @@ func ParseSignatureProof(sigProofBytes []byte) (*PoKOfSignatureProof, error) {
 	}
 
 	return &PoKOfSignatureProof{
-		aPrime:   g1Points[0],
-		aBar:     g1Points[1],
-		d:        g1Points[2],
-		proofVC1: proofVc1,
-		ProofVC2: proofVc2,
+		aPrime:           g1Points[0],
+		aBar:             g1Points[1],
+		d:                g1Points[2],
+		proofVC1:         proofVc1,
+		ProofVC2:         proofVc2,
+		VC2ProofVerifier: &defaultVC2ProofVerifier{},
 	}, nil
 }
 

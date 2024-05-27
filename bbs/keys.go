@@ -43,7 +43,7 @@ type PublicKeyWithGenerators struct {
 
 	w *ml.G2
 
-	messagesCount int
+	MessagesCount int
 }
 
 // ToPublicKeyWithGenerators creates PublicKeyWithGenerators from the PublicKey.
@@ -73,7 +73,7 @@ func (pk *PublicKey) ToPublicKeyWithGenerators(messagesCount int) (*PublicKeyWit
 		H0:            h0,
 		H:             h,
 		w:             pk.PointG2,
-		messagesCount: messagesCount,
+		MessagesCount: messagesCount,
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func (k *PrivateKey) Marshal() ([]byte, error) {
 
 // PublicKey returns a Public Key as G2 point generated from the Private Key.
 func (k *PrivateKey) PublicKey() *PublicKey {
-	pointG2 := curve.GenG2.Mul(frToRepr(k.FR))
+	pointG2 := curve.GenG2.Mul(FrToRepr(k.FR))
 
 	return &PublicKey{pointG2}
 }
