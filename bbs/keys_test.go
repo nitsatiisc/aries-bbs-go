@@ -9,8 +9,10 @@ package bbs_test
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"testing"
 
+	ml "github.com/IBM/mathlib"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/hyperledger/aries-bbs-go/bbs"
 	"github.com/stretchr/testify/require"
@@ -21,58 +23,79 @@ func TestGenerateKeyPair(t *testing.T) {
 
 	seed := make([]byte, 32)
 
-	pubKey, privKey, err := bbs.GenerateKeyPair(h, seed)
-	require.NoError(t, err)
-	require.NotNil(t, pubKey)
-	require.NotNil(t, privKey)
+	for i, curve := range ml.Curves {
+		t.Run(fmt.Sprintf("with curve %s", ml.CurveIDToString(ml.CurveID(i))), func(t *testing.T) {
+			bl := bbs.NewBBSLib(curve)
+			pubKey, privKey, err := bl.GenerateKeyPair(h, seed)
+			require.NoError(t, err)
+			require.NotNil(t, pubKey)
+			require.NotNil(t, privKey)
 
-	// use random seed
-	pubKey, privKey, err = bbs.GenerateKeyPair(h, nil)
-	require.NoError(t, err)
-	require.NotNil(t, pubKey)
-	require.NotNil(t, privKey)
+			// use random seed
+			pubKey, privKey, err = bl.GenerateKeyPair(h, nil)
+			require.NoError(t, err)
+			require.NotNil(t, pubKey)
+			require.NotNil(t, privKey)
 
-	// invalid size of seed
-	pubKey, privKey, err = bbs.GenerateKeyPair(h, make([]byte, 31))
-	require.Error(t, err)
-	require.EqualError(t, err, "invalid size of seed")
-	require.Nil(t, pubKey)
-	require.Nil(t, privKey)
+			// invalid size of seed
+			pubKey, privKey, err = bl.GenerateKeyPair(h, make([]byte, 31))
+			require.Error(t, err)
+			require.EqualError(t, err, "invalid size of seed")
+			require.Nil(t, pubKey)
+			require.Nil(t, privKey)
+		})
+	}
 }
 
 func TestPrivateKey_Marshal(t *testing.T) {
-	_, privKey, err := generateKeyPairRandom()
-	require.NoError(t, err)
+	for i, curve := range ml.Curves {
+		t.Run(fmt.Sprintf("with curve %s", ml.CurveIDToString(ml.CurveID(i))), func(t *testing.T) {
 
-	privKeyBytes, err := privKey.Marshal()
-	require.NoError(t, err)
-	require.NotNil(t, privKeyBytes)
+			_, privKey, err := generateKeyPairRandom(curve)
+			require.NoError(t, err)
 
-	privKeyUnmarshalled, err := bbs.UnmarshalPrivateKey(privKeyBytes)
-	require.NoError(t, err)
-	require.NotNil(t, privKeyUnmarshalled)
-	require.Equal(t, privKey, privKeyUnmarshalled)
+			privKeyBytes, err := privKey.Marshal()
+			require.NoError(t, err)
+			require.NotNil(t, privKeyBytes)
+
+			bl := bbs.NewBBSLib(curve)
+			privKeyUnmarshalled, err := bl.UnmarshalPrivateKey(privKeyBytes)
+			require.NoError(t, err)
+			require.NotNil(t, privKeyUnmarshalled)
+			require.Equal(t, privKey, privKeyUnmarshalled)
+		})
+	}
 }
 
 func TestPrivateKey_PublicKey(t *testing.T) {
-	pubKey, privKey, err := generateKeyPairRandom()
-	require.NoError(t, err)
+	for i, curve := range ml.Curves {
+		t.Run(fmt.Sprintf("with curve %s", ml.CurveIDToString(ml.CurveID(i))), func(t *testing.T) {
 
-	require.Equal(t, pubKey, privKey.PublicKey())
+			pubKey, privKey, err := generateKeyPairRandom(curve)
+			require.NoError(t, err)
+
+			require.Equal(t, pubKey, privKey.PublicKey())
+		})
+	}
 }
 
 func TestPublicKey_Marshal(t *testing.T) {
-	pubKey, _, err := generateKeyPairRandom()
-	require.NoError(t, err)
+	for i, curve := range ml.Curves {
+		t.Run(fmt.Sprintf("with curve %s", ml.CurveIDToString(ml.CurveID(i))), func(t *testing.T) {
+			pubKey, _, err := generateKeyPairRandom(curve)
+			require.NoError(t, err)
 
-	pubKeyBytes, err := pubKey.Marshal()
-	require.NoError(t, err)
-	require.NotNil(t, pubKeyBytes)
+			pubKeyBytes, err := pubKey.Marshal()
+			require.NoError(t, err)
+			require.NotNil(t, pubKeyBytes)
 
-	pubKeyUnmarshalled, err := bbs.UnmarshalPublicKey(pubKeyBytes)
-	require.NoError(t, err)
-	require.NotNil(t, pubKeyUnmarshalled)
-	require.True(t, pubKey.PointG2.Equals(pubKeyUnmarshalled.PointG2))
+			bl := bbs.NewBBSLib(curve)
+			pubKeyUnmarshalled, err := bl.UnmarshalPublicKey(pubKeyBytes)
+			require.NoError(t, err)
+			require.NotNil(t, pubKeyUnmarshalled)
+			require.True(t, pubKey.PointG2.Equals(pubKeyUnmarshalled.PointG2))
+		})
+	}
 }
 
 func TestParseMattrKeys(t *testing.T) {
@@ -83,20 +106,22 @@ func TestParseMattrKeys(t *testing.T) {
 	pubKeyBytes := base58.Decode(pubKeyB58)
 
 	messagesBytes := [][]byte{[]byte("message1"), []byte("message2")}
-	signatureBytes, err := bbs.New().Sign(messagesBytes, privKeyBytes)
+	signatureBytes, err := bbs.New(ml.Curves[ml.BLS12_381_BBS]).Sign(messagesBytes, privKeyBytes)
 	require.NoError(t, err)
 
-	err = bbs.New().Verify(messagesBytes, signatureBytes, pubKeyBytes)
+	err = bbs.New(ml.Curves[ml.BLS12_381_BBS]).Verify(messagesBytes, signatureBytes, pubKeyBytes)
 	require.NoError(t, err)
 }
 
-func generateKeyPairRandom() (*bbs.PublicKey, *bbs.PrivateKey, error) {
+func generateKeyPairRandom(curve *ml.Curve) (*bbs.PublicKey, *bbs.PrivateKey, error) {
 	seed := make([]byte, 32)
 
 	_, err := rand.Read(seed)
 	if err != nil {
 		panic(err)
 	}
+
+	bbs := bbs.NewBBSLib(curve)
 
 	return bbs.GenerateKeyPair(sha256.New, seed)
 }

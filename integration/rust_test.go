@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"testing"
 
+	math "github.com/IBM/mathlib"
 	"github.com/hyperledger/aries-bbs-go/bbs"
 	"github.com/stretchr/testify/require"
 )
@@ -43,14 +44,14 @@ func TestRustSignerGoVerifier(t *testing.T) {
 	sigBytes, err := hex.DecodeString(string(sm[2]))
 	require.NoError(t, err)
 
-	bbs := bbs.New()
+	bbs := bbs.New(math.Curves[math.BLS12_381_BBS])
 
 	err = bbs.Verify(messagesBytes, sigBytes, pkBytes)
 	require.NoError(t, err)
 }
 
 func TestGoSignerRustVerifier(t *testing.T) {
-	pubKey, privKey, err := generateKeyPairRandom()
+	pubKey, privKey, err := generateKeyPairRandom(bbs.NewBBSLib(math.Curves[math.BLS12_381_BBS]))
 	require.NoError(t, err)
 
 	pubKeyBytes, err := pubKey.Marshal()
@@ -58,7 +59,7 @@ func TestGoSignerRustVerifier(t *testing.T) {
 	privKeyBytes, err := privKey.Marshal()
 	require.NoError(t, err)
 
-	bbs := bbs.New()
+	bbs := bbs.New(math.Curves[math.BLS12_381_BBS])
 
 	signatureBytes, err := bbs.Sign(messagesBytes, privKeyBytes)
 	require.NoError(t, err)
@@ -74,7 +75,7 @@ func TestGoSignerRustVerifier(t *testing.T) {
 	require.Len(t, output, 0)
 }
 
-func generateKeyPairRandom() (*bbs.PublicKey, *bbs.PrivateKey, error) {
+func generateKeyPairRandom(lib *bbs.BBSLib) (*bbs.PublicKey, *bbs.PrivateKey, error) {
 	seed := make([]byte, 32)
 
 	_, err := rand.Read(seed)
@@ -82,5 +83,5 @@ func generateKeyPairRandom() (*bbs.PublicKey, *bbs.PrivateKey, error) {
 		panic(err)
 	}
 
-	return bbs.GenerateKeyPair(sha256.New, seed)
+	return lib.GenerateKeyPair(sha256.New, seed)
 }

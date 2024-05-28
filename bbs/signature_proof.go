@@ -29,6 +29,8 @@ type PoKOfSignatureProof struct {
 	ProofVC2 *ProofG1
 
 	VC2ProofVerifier
+
+	curve *ml.Curve
 }
 
 // GetBytesForChallenge creates bytes for proof challenge.
@@ -36,7 +38,7 @@ func (sp *PoKOfSignatureProof) GetBytesForChallenge(revealedMessages map[int]*Si
 	pubKey *PublicKeyWithGenerators) []byte {
 	hiddenCount := pubKey.MessagesCount - len(revealedMessages)
 
-	bytesLen := (7 + hiddenCount) * g1UncompressedSize //nolint:gomnd
+	bytesLen := (7 + hiddenCount) * sp.curve.CompressedG1ByteSize //nolint:gomnd
 	bytes := make([]byte, 0, bytesLen)
 
 	bytes = append(bytes, sp.aBar.Bytes()...)
@@ -63,7 +65,7 @@ func (sp *PoKOfSignatureProof) Verify(challenge *ml.Zr, pubKey *PublicKeyWithGen
 	aBar := sp.aBar.Copy()
 	aBar.Neg()
 
-	ok := compareTwoPairings(sp.aPrime, pubKey.w, aBar, curve.GenG2)
+	ok := compareTwoPairings(sp.aPrime, pubKey.w, aBar, sp.curve.GenG2, sp.curve)
 	if !ok {
 		return errors.New("bad signature")
 	}
@@ -90,6 +92,7 @@ func (sp *PoKOfSignatureProof) verifyVC1Proof(challenge *ml.Zr, pubKey *PublicKe
 }
 
 type defaultVC2ProofVerifier struct {
+	curve *ml.Curve
 }
 
 func (v *defaultVC2ProofVerifier) Verify(challenge *ml.Zr, pubKey *PublicKeyWithGenerators,
@@ -103,8 +106,8 @@ func (v *defaultVC2ProofVerifier) Verify(challenge *ml.Zr, pubKey *PublicKeyWith
 	basesDisclosed := make([]*ml.G1, 0, 1+revealedMessagesCount)
 	exponents := make([]*ml.Zr, 0, 1+revealedMessagesCount)
 
-	basesDisclosed = append(basesDisclosed, curve.GenG1)
-	exponents = append(exponents, curve.NewZrFromInt(1))
+	basesDisclosed = append(basesDisclosed, v.curve.GenG1)
+	exponents = append(exponents, v.curve.NewZrFromInt(1))
 
 	revealedMessagesInd := 0
 
@@ -119,8 +122,8 @@ func (v *defaultVC2ProofVerifier) Verify(challenge *ml.Zr, pubKey *PublicKeyWith
 	}
 
 	// TODO: expose 0
-	pr := curve.GenG1.Copy()
-	pr.Sub(curve.GenG1)
+	pr := v.curve.GenG1.Copy()
+	pr.Sub(v.curve.GenG1)
 
 	for i := 0; i < len(basesDisclosed); i++ {
 		b := basesDisclosed[i]
@@ -213,8 +216,8 @@ func (pg1 *ProofG1) ToBytes() []byte {
 }
 
 // ParseSignatureProof parses a signature proof.
-func ParseSignatureProof(sigProofBytes []byte) (*PoKOfSignatureProof, error) {
-	if len(sigProofBytes) < g1CompressedSize*3 {
+func (b *BBSLib) ParseSignatureProof(sigProofBytes []byte) (*PoKOfSignatureProof, error) {
+	if len(sigProofBytes) < b.g1CompressedSize*3 {
 		return nil, errors.New("invalid size of signature proof")
 	}
 
@@ -222,64 +225,67 @@ func ParseSignatureProof(sigProofBytes []byte) (*PoKOfSignatureProof, error) {
 	offset := 0
 
 	for i := range g1Points {
-		g1Point, err := curve.NewG1FromCompressed(sigProofBytes[offset : offset+g1CompressedSize])
+		g1Point, err := b.curve.NewG1FromCompressed(sigProofBytes[offset : offset+b.g1CompressedSize])
 		if err != nil {
 			return nil, fmt.Errorf("parse G1 point: %w", err)
 		}
 
 		g1Points[i] = g1Point
-		offset += g1CompressedSize
+		offset += b.g1CompressedSize
 	}
 
 	proof1BytesLen := int(uint32FromBytes(sigProofBytes[offset : offset+4]))
 	offset += 4
 
-	proofVc1, err := ParseProofG1(sigProofBytes[offset : offset+proof1BytesLen])
+	proofVc1, err := b.ParseProofG1(sigProofBytes[offset : offset+proof1BytesLen])
 	if err != nil {
 		return nil, fmt.Errorf("parse G1 proof: %w", err)
 	}
 
 	offset += proof1BytesLen
 
-	proofVc2, err := ParseProofG1(sigProofBytes[offset:])
+	proofVc2, err := b.ParseProofG1(sigProofBytes[offset:])
 	if err != nil {
 		return nil, fmt.Errorf("parse G1 proof: %w", err)
 	}
 
 	return &PoKOfSignatureProof{
-		aPrime:           g1Points[0],
-		aBar:             g1Points[1],
-		d:                g1Points[2],
-		proofVC1:         proofVc1,
-		ProofVC2:         proofVc2,
-		VC2ProofVerifier: &defaultVC2ProofVerifier{},
+		aPrime:   g1Points[0],
+		aBar:     g1Points[1],
+		d:        g1Points[2],
+		proofVC1: proofVc1,
+		ProofVC2: proofVc2,
+		VC2ProofVerifier: &defaultVC2ProofVerifier{
+			curve: b.curve,
+		},
+		curve: b.curve,
 	}, nil
 }
 
 // ParseProofG1 parses ProofG1 from bytes.
-func ParseProofG1(bytes []byte) (*ProofG1, error) {
-	if len(bytes) < g1CompressedSize+4 {
+func (b *BBSLib) ParseProofG1(bytes []byte) (*ProofG1, error) {
+	if len(bytes) < b.g1CompressedSize+4 {
 		return nil, errors.New("invalid size of G1 signature proof")
 	}
 
 	offset := 0
 
-	commitment, err := curve.NewG1FromCompressed(bytes[:g1CompressedSize])
+	commitment, err := b.curve.NewG1FromCompressed(bytes[:b.g1CompressedSize])
 	if err != nil {
 		return nil, fmt.Errorf("parse G1 point: %w", err)
 	}
 
-	offset += g1CompressedSize
+	offset += b.g1CompressedSize
 	length := int(uint32FromBytes(bytes[offset : offset+4]))
 	offset += 4
 
-	if len(bytes) < g1CompressedSize+4+length*frCompressedSize {
+	if len(bytes) < b.g1CompressedSize+4+length*frCompressedSize {
 		return nil, errors.New("invalid size of G1 signature proof")
 	}
 
 	responses := make([]*ml.Zr, length)
 	for i := 0; i < length; i++ {
-		responses[i] = parseFr(bytes[offset : offset+frCompressedSize])
+		responses[i] = b.parseFr(bytes[offset : offset+frCompressedSize])
 		offset += frCompressedSize
 	}
 

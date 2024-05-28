@@ -17,8 +17,8 @@ type SignatureMessage struct {
 }
 
 // ParseSignatureMessage parses SignatureMessage from bytes.
-func ParseSignatureMessage(message []byte, idx int) *SignatureMessage {
-	elm := FrFromOKM(message)
+func ParseSignatureMessage(message []byte, idx int, curve *ml.Curve) *SignatureMessage {
+	elm := FrFromOKM(message, curve)
 
 	return &SignatureMessage{
 		FR:  elm,
