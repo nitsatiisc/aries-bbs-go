@@ -30,25 +30,7 @@ func f2192(curve *ml.Curve) *ml.Zr {
 }
 
 func FrFromOKM(message []byte, curve *ml.Curve) *ml.Zr {
-	const (
-		eightBytes = 8
-		okmMiddle  = 24
-	)
-
-	// We pass a null key so error is impossible here.
-	h, _ := blake2b.New384(nil) //nolint:errcheck
-
-	// blake2b.digest() does not return an error.
-	_, _ = h.Write(message)
-	okm := h.Sum(nil)
-	emptyEightBytes := make([]byte, eightBytes)
-
-	elm := curve.NewZrFromBytes(append(emptyEightBytes, okm[:okmMiddle]...))
-	elm = elm.Mul(f2192(curve))
-
-	fr := curve.NewZrFromBytes(append(emptyEightBytes, okm[okmMiddle:]...))
-	elm = elm.Plus(fr)
-
+	elm := curve.HashToZr(message)
 	return elm
 }
 
