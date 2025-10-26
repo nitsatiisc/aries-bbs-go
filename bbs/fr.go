@@ -10,7 +10,7 @@ import (
 	"crypto/rand"
 
 	ml "github.com/IBM/mathlib"
-	"golang.org/x/crypto/blake2b"
+	_ "golang.org/x/crypto/blake2b"
 )
 
 func (b *BBSLib) parseFr(data []byte) *ml.Zr {
