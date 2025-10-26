@@ -18,6 +18,16 @@ type VC2ProofVerifier interface {
 	Verify(*ml.Zr, *PublicKeyWithGenerators, map[int]*SignatureMessage, []*SignatureMessage, *ProofG1, *ml.G1) error
 }
 
+// Provide access to low-level mathlib types
+type ExportedProof struct {
+	Aprime *ml.G1
+	Abar   *ml.G1
+	D      *ml.G1
+
+	ProofVC1 *ProofG1
+	ProofVC2 *ProofG1
+}
+
 // PoKOfSignatureProof defines BLS signature proof.
 // It is the actual proof that is sent from prover to verifier.
 type PoKOfSignatureProof struct {
@@ -31,6 +41,18 @@ type PoKOfSignatureProof struct {
 	VC2ProofVerifier
 
 	curve *ml.Curve
+}
+
+// This function provides access to low level mathlib types which
+// are not exported by default.
+func (sp *PoKOfSignatureProof) ExportProof() ExportedProof {
+	return ExportedProof{
+		Aprime:   sp.aPrime,
+		Abar:     sp.aBar,
+		D:        sp.d,
+		ProofVC1: sp.proofVC1,
+		ProofVC2: sp.ProofVC2,
+	}
 }
 
 // GetBytesForChallenge creates bytes for proof challenge.
